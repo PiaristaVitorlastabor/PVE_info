@@ -1,0 +1,14 @@
+{
+  "name": "viharjelzes",
+  "version": "0.1.0",
+  "description": "Balatoni viharjelzes + aktualis ido/idojaras kijelzo (Electron) - tanulos projekt",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron ."
+  },
+  "author": "Tamas",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^42.4.1"
+  }
+}

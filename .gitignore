@@ -1,0 +1,5 @@
+# Node.js függőségek (a package.json alapján bármikor újratelepíthető)
+node_modules/
+
+# macOS rendszerfájl
+.DS_Store

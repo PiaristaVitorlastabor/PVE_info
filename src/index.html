@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<!--
+  index.html — ez jelenik meg az ablakban (mint egy weboldal).
+  A képernyő függőlegesen HÁROM egyenlő harmadra oszlik:
+    1) BAL     : a balatoni viharjelzés aktuális állapota
+    2) KÖZÉP   : Balatonberény időjárása, a SZÉLRE kihegyezve (vitorlástábor)
+    3) JOBB    : a foci VB legutóbbi eredményei + következő meccsei
+-->
+<html lang="hu">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Balaton – viharjelzés, szél, VB</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+
+  <body>
+    <div class="app">
+      <!-- Piarista Vitorlázó Egyesület logó a jobb felső sarokban. -->
+      <img
+        class="app-logo"
+        src="assets/logo.png"
+        alt="Piarista Vitorlázó Egyesület"
+        onerror="this.style.display='none'"
+      />
+      <!-- =========================================================
+           1. HARMAD — VIHARJELZÉS
+           ========================================================= -->
+      <section class="panel vihar" id="viharPanel">
+        <h2 class="panel__cim">Balatoni viharjelzés</h2>
+
+        <div class="vihar__osszesitett">
+          <img class="vihar__kep" id="viharKep" alt="Viharjelzés" />
+          <div class="vihar__fokozat" id="viharFokozat">Betöltés…</div>
+          <div class="vihar__leiras" id="viharLeiras"></div>
+        </div>
+
+        <div class="medencek" id="medencek"></div>
+
+        <!-- Élő webkamera (idokep.hu – Balatonberény). A kép a JS-ben
+             pörög körbe a legutóbbi képkockákból. -->
+        <figure class="cam" id="camDoboz">
+          <img class="cam__kep" id="camKep" alt="Balatonberény webkamera" />
+          <figcaption class="cam__felirat">
+            📹 Balatonberény – élő webkamera
+            <span id="camAllapot" class="halvany"></span>
+          </figcaption>
+        </figure>
+
+        <p class="panel__labjegyzet">
+          <span id="viharForrasIdo"></span>
+          <span id="viharSajatIdo" class="halvany"></span>
+        </p>
+      </section>
+
+      <!-- =========================================================
+           2. HARMAD — IDŐJÁRÁS (Balatonberény), SZÉL-fókusszal
+           ========================================================= -->
+      <section class="panel idojaras-panel">
+        <!-- Kompakt élő óra a panel tetején. -->
+        <div class="ora-sav">
+          <span class="ora-sav__ido" id="oraIdo">--:--:--</span>
+          <span class="ora-sav__datum" id="oraDatum"></span>
+        </div>
+
+        <h2 class="panel__cim">Szél &amp; időjárás — Balatonberény</h2>
+
+        <!-- A SZÉL a főszereplő (vitorlázáshoz ez a lényeg). -->
+        <div class="szel" id="szelKartya">
+          <div class="szel__cimke">Szél</div>
+          <div class="szel__fo">
+            <span class="szel__ertek" id="szelKmh">–</span>
+            <span class="szel__egyseg">km/h</span>
+          </div>
+          <div class="szel__irany">
+            <span class="szel__nyil" id="szelNyil">↑</span>
+            <span id="szelIranyLabel">–</span>
+          </div>
+          <div class="szel__extra" id="szelExtra"></div>
+          <div class="szel__loket" id="szelLoket"></div>
+        </div>
+
+        <!-- Másodlagos időjárás-infók (hőmérséklet, égkép). -->
+        <div class="ido-mas" id="idoMas">
+          <img class="ido-mas__ikon" id="idoIkon" alt="" />
+          <div>
+            <div class="ido-mas__hom" id="idoHom">–</div>
+            <div class="ido-mas__leiras" id="idoLeiras">Betöltés…</div>
+          </div>
+        </div>
+
+        <div class="reszletek" id="idoReszletek"></div>
+
+        <!-- Szél-térkép (idokep.hu), Balatonra zoomolva, animálva.
+             A videót a main process tölti le és adja át data URL-ként;
+             a kivágó doboz + a videó transzformja nagyít a Balatonra. -->
+        <figure class="szelterkep">
+          <div class="szelterkep__box">
+            <video
+              class="szelterkep__media"
+              id="szelterkepVideo"
+              autoplay
+              loop
+              muted
+              playsinline
+            ></video>
+          </div>
+          <figcaption class="szelterkep__felirat">
+            🗺️ Szél a Balatonon (km/h) <span class="halvany">idokep.hu</span>
+          </figcaption>
+        </figure>
+
+        <p class="panel__labjegyzet halvany" id="idoSajatIdo"></p>
+      </section>
+
+      <!-- =========================================================
+           3. HARMAD — FOCI VB 2026
+           ========================================================= -->
+      <section class="panel vb-panel">
+        <h2 class="panel__cim">Foci VB 2026 🏆</h2>
+
+        <h3 class="vb__alcim">Legutóbbi eredmények</h3>
+        <div class="vb-lista" id="vbEredmenyek">
+          <div class="halvany">Betöltés…</div>
+        </div>
+
+        <h3 class="vb__alcim">Következő meccsek</h3>
+        <div class="vb-lista" id="vbKovetkezok"></div>
+
+        <p class="panel__labjegyzet halvany" id="vbSajatIdo"></p>
+      </section>
+    </div>
+
+    <script src="renderer.js"></script>
+  </body>
+</html>
