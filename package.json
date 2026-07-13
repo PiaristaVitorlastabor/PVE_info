@@ -4,7 +4,9 @@
   "description": "Balatoni viharjelzes + aktualis ido/idojaras kijelzo (Electron) - tanulos projekt",
   "main": "main.js",
   "scripts": {
-    "start": "electron ."
+    "start": "npm run start:web",
+    "start:electron": "electron .",
+    "start:web": "node server.js"
   },
   "author": "Tamas",
   "license": "MIT",

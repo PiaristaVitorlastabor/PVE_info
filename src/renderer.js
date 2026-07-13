@@ -452,38 +452,38 @@ function kameraKirajzol(adat) {
 }
 
 function kameratFrissit() {
-  if (!window.viharAPI) return
-  window.viharAPI.getKamera().then(kameraKirajzol)
-}
-
-// A szél-térkép (animált videó) kirajzolása — data URL-t kapunk.
-function szelterkepKirajzol(adat) {
-  if (!adat || !adat.ok) return // hiba esetén marad az eddigi videó
-  // Csak akkor cseréljük a forrást, ha tényleg új (különben feleslegesen
-  // újratöltené és megakadna a lejátszás).
-  if (szelterkepVideo.src !== adat.kep) {
-    szelterkepVideo.src = adat.kep
-    szelterkepVideo.play?.().catch(() => {}) // az autoplay-t megtámogatjuk
-  }
+  fetch('/api/kamera')
+    .then((r) => r.json())
+    .then(kameraKirajzol)
+    .catch((err) => kameraKirajzol({ ok: false, hiba: err.message }))
 }
 
 function szelterkepFrissit() {
-  if (!window.viharAPI) return
-  window.viharAPI.getSzelterkep().then(szelterkepKirajzol)
+  // A videót a szerver adja vissza MP4-ként. A lekérésben benne van a
+  // timestamp, hogy minden frissítés új forrást indítson.
+  szelterkepVideo.src = `/api/szelterkep?ts=${Date.now()}`
+  szelterkepVideo.load()
+  szelterkepVideo.play?.().catch(() => {})
 }
 
 // =============================================================
 //  Az adatok lekérése és kirajzolása
 // =============================================================
 async function mindentFrissit() {
-  if (!window.viharAPI) {
-    console.error('A viharAPI nem elérhető (fut egyáltalán Electronban?).')
-    return
-  }
-  // Mindegyik lekérést párhuzamosan indítjuk, és külön-külön rajzoljuk ki.
-  window.viharAPI.getVihar().then(viharKirajzol)
-  window.viharAPI.getIdojaras().then(idojarasKirajzol)
-  window.viharAPI.getFoci().then(fociKirajzol)
+  fetch('/api/vihar')
+    .then((r) => r.json())
+    .then(viharKirajzol)
+    .catch((err) => viharKirajzol({ ok: false, hiba: err.message }))
+
+  fetch('/api/idojaras')
+    .then((r) => r.json())
+    .then(idojarasKirajzol)
+    .catch((err) => idojarasKirajzol({ ok: false, hiba: err.message }))
+
+  fetch('/api/foci')
+    .then((r) => r.json())
+    .then(fociKirajzol)
+    .catch((err) => fociKirajzol({ ok: false, hiba: err.message }))
 }
 
 // =============================================================
