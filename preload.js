@@ -32,4 +32,7 @@ contextBridge.exposeInMainWorld('viharAPI', {
 
   // Az idokep szél-térkép képe (data URL-ként).
   getSzelterkep: () => ipcRenderer.invoke('szelterkep:lekered'),
+
+  // A met.hu oldalon mért részletes balatoni széladatok kérése.
+  getMertAdatok: () => ipcRenderer.invoke('mertadatok:lekered')
 })

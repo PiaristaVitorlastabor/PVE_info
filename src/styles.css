@@ -411,6 +411,29 @@ body {
 }
 
 /* =======================================================
+   3. HARMAD — FORECAST
+   ======================================================= */
+   
+#sliderContainer {
+    margin-top: 10px;
+    margin-bottom: 10px;
+}
+
+#terkepSlider {
+    width: 100%;
+    cursor: pointer;
+}
+
+#sliderIdoJelzes {
+    text-align: center;
+    font-size: 0.8em;
+    color: #666;
+    margin-top: 5px;
+    font-weight: 500;
+}
+
+
+/* =======================================================
    MOBIL RESPONSIVE NÉZET (< 900px)
    ======================================================= */
 @media (max-width: 900px) {

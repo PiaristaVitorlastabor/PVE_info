@@ -75,6 +75,9 @@ const KAMERA_KOCKAK_SZAMA = 100 // ennyi LEGUTÓBBI képkockát pörgetünk kör
 // ki). Az ablakban Balatonra zoomolunk rá (CSS-sel).
 const SZELTERKEP_URL = 'https://www.idokep.hu/terkep/hu/szelterkep3.mp4'
 
+// A met.hu oldalon a mért szél- és időjárás adatok táblázata
+const MERT_ADATOK_URL = 'https://www.met.hu/idojaras/tavaink/balaton/mert_adatok/'
+
 // -------------------------------------------------------------
 //  Az ablak létrehozása
 // -------------------------------------------------------------
@@ -381,6 +384,64 @@ async function szelterkepLekered() {
 }
 
 // =============================================================
+//  ADATLEKÉRÉS 6.  —  Mért széladatok (met.hu)
+// =============================================================
+function mertAdatokatFeldolgoz(html) {
+  // Tisztítsuk meg a HTML-t az újsoroktól és extra szóközöktől a könnyebb regex illesztésért
+  const tisztaHtml = html.replace(/\s+/g, ' ');
+
+  // Keresett települések listája
+  const celpontok = ['Balatonmáriafürdő', 'Keszthely platform'];
+  const eredmeny = {};
+
+  celpontok.forEach((hely) => {
+    // Regex magyarázat: megkeresi a hely nevét egy <td>-ben, majd végigkíséri a következő <td> elemeket
+    // [^>]*>([^<]*)< kinyeri a szöveges tartalmat a <td> és </td> jelek közül.
+    const sorRegex = new RegExp(
+      `<td>\\s*${hely}\\s*<\/td>\\s*` + 
+      `<td>[^<]*<\/td>\\s*` + // 2. oszlop (Széllökés irány)
+      `<td>([^<]*)<\/td>\\s*` + // 3. oszlop (Széllökés Beaufort) -> Kívánt
+      `<td>([^<]*)<\/td>\\s*` + // 4. oszlop (Széllökés km/h)     -> Kívánt
+      `<td>[^<]*<\/td>\\s*` + // 5. oszlop (Átlagszél irány)
+      `<td>[^<]*<\/td>\\s*` + // 6. oszlop (Átlagszél Beaufort)
+      `<td>([^<]*)<\/td>\\s*` + // 7. oszlop (Átlagszél irány fok) -> Kívánt
+      `<td>([^<]*)<\/td>`,      // 8. oszlop (Átlagszél sebesség)  -> Kívánt
+      'i'
+    );
+
+    const talalat = tisztaHtml.match(sorRegex);
+
+    if (talalat) {
+      eredmeny[hely] = {
+        szellokesBeaufort: talalat[1].trim(),
+        szellokesKmh: talalat[2].trim(),
+        atlagszelIranyFok: talalat[3].trim(),
+        atlagszelSebessegKmh: talalat[4].trim(),
+      };
+    } else {
+      eredmeny[hely] = { hiba: 'Nem található adat ehhez a helyszínhez.' };
+    }
+  });
+
+  return { ok: true, adatok: eredmeny };
+}
+
+async function mertAdatokatLekered() {
+  try {
+    const valasz = await fetch(MERT_ADATOK_URL, {
+      headers: { 'User-Agent': 'Mozilla/5.0' },
+    });
+    if (!valasz.ok) {
+      return { ok: false, hiba: `met.hu válasz: HTTP ${valasz.status}` };
+    }
+    const html = await valasz.text();
+    return mertAdatokatFeldolgoz(html);
+  } catch (err) {
+    return { ok: false, hiba: `Hálózati hiba: ${err.message}` };
+  }
+}
+
+// =============================================================
 //  IPC — a biztonságos "cső" az ablak és a main process között
 // =============================================================
 //
@@ -393,6 +454,7 @@ ipcMain.handle('idojaras:lekered', () => idojarastLekered())
 ipcMain.handle('foci:lekered', () => fociLekered())
 ipcMain.handle('kamera:lekered', () => kameraLekered())
 ipcMain.handle('szelterkep:lekered', () => szelterkepLekered())
+ipcMain.handle('mertadatok:lekered', () => mertAdatokatLekered())
 
 // =============================================================
 //  Az app életciklusa (ugyanaz a minta, mint a lock-in appban)

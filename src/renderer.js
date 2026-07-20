@@ -42,9 +42,13 @@ const idoSajatIdo = document.getElementById('idoSajatIdo')
 const szelterkepVideo = document.getElementById('szelterkepVideo')
 
 // Foci VB (jobb)
-const vbEredmenyek = document.getElementById('vbEredmenyek')
-const vbKovetkezok = document.getElementById('vbKovetkezok')
+// const metMeasure = document.getElementById('metMeasure')
+const metForecast = document.getElementById('metForecast')
 const vbSajatIdo = document.getElementById('vbSajatIdo')
+
+// Új mérési adatok (Balatonmáriafürdő és Keszthely platform)
+const mertAdatokDiv = document.getElementById('metMeasure')
+const mertSajatIdo = document.getElementById('mertSajatIdo')
 
 // Frissítési gyakoriság: 5 perc, ezredmásodpercben.
 const FRISSITES_MS = 5 * 60 * 1000
@@ -141,14 +145,22 @@ function viharKirajzol(adat) {
     return
   }
 
-  viharPanel.className = `panel vihar vihar--${adat.osszesitett.kulcs}`
-  viharKep.src = adat.osszesitett.kepUrl
-  viharFokozat.textContent = adat.osszesitett.cimke
-  viharLeiras.textContent =
-    adat.osszesitett.szint === 0
-      ? 'Nincs érvényben viharjelzés a Balatonon.'
-      : `${adat.osszesitett.cimke}ú viharjelzés érvényben.`
+  // 1. Megkeressük a nyugati medencét a medence tömbből
+  // (Feltételezve, hogy a medence objektumnak van 'nev' vagy 'kulcs' mezője, pl. m.nev.includes('Nyugati'))
+  const nyugatiMedence = adat.medencek.find(m => 
+    m.nev && m.nev.toLowerCase().includes('nyugati')
+  ) || adat.medencek[0]; // Fallback az elsőre, ha nem találná
 
+  // 2. A panel háttérszíne és a felső ikon CSAK a nyugati alapján frissül
+  viharPanel.className = `panel vihar vihar--${nyugatiMedence.kulcs || nyugatiMedence.szint}`
+  viharKep.src = nyugatiMedence.kepUrl
+  viharFokozat.textContent = nyugatiMedence.cimke
+  viharLeiras.textContent =
+    nyugatiMedence.szint === 0
+      ? 'Nincs érvényben viharjelzés a Balaton nyugati medencéjében.'
+      : `${nyugatiMedence.cimke}ú viharjelzés érvényben a nyugati medencében.`
+
+  // 3. Az összes medence listázása alul maradhat mind a 3-mal
   medencekEl.innerHTML = ''
   adat.medencek.forEach((m) => {
     const div = document.createElement('div')
@@ -384,14 +396,14 @@ function fociKirajzol(adat) {
   vbSajatIdo.textContent = `Frissítve: ${mostSzoveg()} · Forrás: TheSportsDB`
 
   if (!adat || !adat.ok) {
-    vbEredmenyek.innerHTML = `<div class="hiba">${esc(
+    metMeasure.innerHTML = `<div class="hiba">${esc(
       adat?.hiba || 'A VB-adatok most nem elérhetők.'
     )}</div>`
     vbKovetkezok.innerHTML = ''
     return
   }
 
-  vbEredmenyek.innerHTML = adat.eredmenyek.length
+  metMeasure.innerHTML = adat.eredmenyek.length
     ? adat.eredmenyek.map(eredmenySor).join('')
     : '<div class="halvany">Nincs friss eredmény.</div>'
 
@@ -467,6 +479,164 @@ function szelterkepFrissit() {
 }
 
 // =============================================================
+//  MÉRT ADATOK kirajzolása (met.hu táblázat alapján)
+// =============================================================
+function mertAdatokKirajzol(adat) {
+  const mertAdatokEredmenyek = document.getElementById('metMeasure');
+  const vbSajatIdo = document.getElementById('vbSajatIdo');
+
+  if (vbSajatIdo) {
+    vbSajatIdo.textContent = `Frissítve: ${mostSzoveg()} · Forrás: met.hu`;
+  }
+
+  if (!mertAdatokEredmenyek) return;
+
+  // 1. Hibakezelés, ha a szerver nem válaszol megfelelően
+  if (!adat || !adat.ok || !adat.adatok) {
+    mertAdatokEredmenyek.innerHTML = `
+      <div class="hiba" style="color: #ff5252; padding: 10px;">
+        <strong>Hiba az adatok betöltésekor:</strong><br />
+        ${esc(adat?.hiba || 'Üres válasz érkezett a szervertől.')}
+      </div>`;
+    return;
+  }
+
+  const maria = adat.adatok['Balatonmáriafürdő'];
+  const keszthely = adat.adatok['Keszthely platform'];
+
+  // 2. Hibakezelés, ha a struktúra sérült
+  if ((maria && maria.hiba) || (keszthely && keszthely.hiba)) {
+    mertAdatokEredmenyek.innerHTML = `
+      <div class="hiba" style="color: #ffb300; padding: 10px;">
+        <strong>Adatbeolvasási hiba:</strong><br />
+        Máriafürdő: ${esc(maria?.hiba || 'OK')}<br />
+        Keszthely: ${esc(keszthely?.hiba || 'OK')}
+      </div>`;
+    return;
+  }
+
+  // Segédfüggvény egy település blokkjának legenerálásához kéthasábos elrendezéssel
+  function generalHelyszinHtml(nev, adatObj) {
+    return `
+      <div class="mert-helyszin" style="margin-bottom: 25px;">
+        <strong style="color: #fff; display: block; margin-bottom: 8px; font-size: 1.15em; border-bottom: 1px solid rgba(255,255,255,0.2); padding-bottom: 4px;">
+          ${esc(nev)}
+        </strong>
+        
+        <!-- Kéthasábos elrendezés Flexbox-szal -->
+        <div style="display: flex; gap: 15px; width: 100%;">
+          
+          <!-- BAL OLDAL: Széllökés -->
+          <div style="flex: 1; background: rgba(255, 235, 59, 0.05); padding: 8px; border-radius: 4px; border-left: 3px solid #ffeb3b;">
+            <div style="font-size: 0.85em; color: #ffeb3b; font-weight: bold; margin-bottom: 5px; text-transform: uppercase;">Széllökés</div>
+            <div style="display: flex; justify-content: space-between; margin-bottom: 3px;">
+              <span style="color: #aaa; font-size: 0.9em;">Sebesség:</span>
+              <span style="font-weight: bold; color: #fff;">${esc(adatObj.szellokesKmh)}</span>
+            </div>
+            <div style="display: flex; justify-content: space-between;">
+              <span style="color: #aaa; font-size: 0.9em;">Irány:</span>
+              <span style="color: #fff;">${esc(adatObj.szellokesIrany)}</span>
+            </div>
+          </div>
+          
+          <!-- JOBB OLDAL: Átlagszél -->
+          <div style="flex: 1; background: rgba(33, 150, 243, 0.05); padding: 8px; border-radius: 4px; border-left: 3px solid #2196f3;">
+            <div style="font-size: 0.85em; color: #2196f3; font-weight: bold; margin-bottom: 5px; text-transform: uppercase;">Átlagszél</div>
+            <div style="display: flex; justify-content: space-between; margin-bottom: 3px;">
+              <span style="color: #aaa; font-size: 0.9em;">Sebesség:</span>
+              <span style="font-weight: bold; color: #fff;">${esc(adatObj.atlagszelSebessegKmh)}</span>
+            </div>
+            <div style="display: flex; justify-content: space-between;">
+              <span style="color: #aaa; font-size: 0.9em;">Irány:</span>
+              <span style="color: #fff;">${esc(adatObj.atlagszelIranyFok)}</span>
+            </div>
+          </div>
+          
+        </div>
+      </div>
+    `;
+  }
+
+  // A két helyszín egymás alá pakolása a tiszta, új elrendezéssel
+  mertAdatokEredmenyek.innerHTML = `
+    ${generalHelyszinHtml('Balatonmáriafürdő', maria)}
+    ${generalHelyszinHtml('Keszthely platform', keszthely)}
+  `;
+}
+
+function balatonElorejelzesKirajzol(adat) {
+  const elorejelzesDiv = document.getElementById('metForecast');
+  if (!elorejelzesDiv) return;
+
+  if (!adat || !adat.ok || !adat.htmlTartalom) {
+    elorejelzesDiv.innerHTML = `<div style="color: #aaa; font-style: italic; padding: 5px;">Az előrejelzés jelenleg nem érhető el.</div>`;
+    return;
+  }
+
+  // Változtatás nélkül, közvetlenül beszúrjuk az összesített dobozokat
+  elorejelzesDiv.innerHTML = adat.htmlTartalom;
+}
+
+let elerhetoKepek = [];
+
+async function initBalatonSlider() {
+    try {
+        const response = await fetch('/api/balaton-terkep-slider');
+        const data = await response.json();
+
+        if (data.ok && data.urls && data.urls.length > 0) {
+            elerhetoKepek = data.urls;
+
+            const slider = document.getElementById('terkepSlider');
+            if (slider) {
+                slider.max = elerhetoKepek.length - 1;
+                slider.value = 0; // Biztosítjuk, hogy 0-ról induljon
+                
+                // Slider eseménykezelő
+                slider.addEventListener('input', (e) => {
+                    rajzoldKiAKept(e.target.value);
+                });
+            }
+
+            // KÉNYSZERÍTETT ELSŐ HÍVÁS:
+            // Meghívjuk a függvényt explicit módon a 0-s indexszel
+            rajzoldKiAKept(0);
+        }
+    } catch (e) {
+        console.error("Hiba a slider inicializálásakor:", e);
+    }
+}
+
+function rajzoldKiAKept(index) {
+    const imgContainer = document.getElementById('forecastImg');
+    const jelzes = document.getElementById('sliderIdoJelzes');
+    
+    // Debugolás: ellenőrizzük, hogy létezik-e a kép az adott indexen
+    const url = elerhetoKepek[index];
+    if (!url) {
+        console.error("Nincs kép a megadott indexen:", index);
+        return;
+    }
+
+    // Biztosítjuk a megjelenítést
+    imgContainer.style.display = 'block';
+    imgContainer.style.visibility = 'visible';
+
+    imgContainer.innerHTML = `
+        <div style="margin-top: 5px; padding: 5px; background: #000; border-radius: 4px;">
+            <img src="${url}" alt="Balaton Térkép" style="width: 100%; height: auto; display: block;" />
+        </div>
+    `;
+    
+    if (jelzes) {
+        jelzes.innerText = `Előrejelzés: +${parseInt(index) + 1} óra`;
+    }
+}
+
+// Az oldal betöltésekor indítjuk
+document.addEventListener('DOMContentLoaded', initBalatonSlider);
+
+// =============================================================
 //  Az adatok lekérése és kirajzolása
 // =============================================================
 async function mindentFrissit() {
@@ -480,31 +650,42 @@ async function mindentFrissit() {
     .then(idojarasKirajzol)
     .catch((err) => idojarasKirajzol({ ok: false, hiba: err.message }))
 
-  fetch('/api/foci')
+  fetch('/api/mertadatok')
     .then((r) => r.json())
-    .then(fociKirajzol)
-    .catch((err) => fociKirajzol({ ok: false, hiba: err.message }))
+    .then(mertAdatokKirajzol)
+    .catch((err) => mertAdatokKirajzol({ ok: false, hiba: err.message }))
+
+  fetch('/api/balaton-elorejelzes')
+    .then((r) => r.json())
+    .then(balatonElorejelzesKirajzol)
+    .catch((err) => console.error("Előrejelzés hiba:", err))
+
+  // A régi fetch('/api/balaton-terkep') sort töröld ki innen!
 }
 
 // =============================================================
 //  INDÍTÁS
 // =============================================================
-oratFrissit()
-setInterval(oratFrissit, 1000)
+document.addEventListener('DOMContentLoaded', () => {
+    oratFrissit();
+    setInterval(oratFrissit, 1000);
 
-mindentFrissit()
-setInterval(mindentFrissit, FRISSITES_MS)
+    mindentFrissit();
+    setInterval(mindentFrissit, FRISSITES_MS);
 
-// Webkamera: azonnal, majd 60 másodpercenként új képkockákért.
-kameratFrissit()
-setInterval(kameratFrissit, KAMERA_FRISSITES_MS)
+    // Kamera indítása
+    kameratFrissit();
+    setInterval(kameratFrissit, KAMERA_FRISSITES_MS);
 
-// A szél-térkép animációt fél sebességre lassítjuk. Ezt minden
-// betöltéskor újra beállítjuk, mert új forrásnál visszaállhat.
+    // Térkép slider indítása
+    initBalatonSlider();
+
+    // Szél-térkép videó
+    szelterkepFrissit();
+    setInterval(szelterkepFrissit, SZELTERKEP_FRISSITES_MS);
+});
+
+// A videó sebesség beállítása maradjon a fájl végén
 szelterkepVideo.addEventListener('loadeddata', () => {
   szelterkepVideo.playbackRate = SZELTERKEP_SEBESSEG
 })
-
-// Szél-térkép videó: azonnal, majd 15 percenként frissebb felvételért.
-szelterkepFrissit()
-setInterval(szelterkepFrissit, SZELTERKEP_FRISSITES_MS)

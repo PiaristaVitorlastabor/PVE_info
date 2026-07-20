@@ -116,15 +116,21 @@
            3. HARMAD — FOCI VB 2026
            ========================================================= -->
       <section class="panel vb-panel">
-        <h2 class="panel__cim">Foci VB 2026 🏆</h2>
+        <h2 class="panel__cim">MET adatok</h2>
 
-        <h3 class="vb__alcim">Legutóbbi eredmények</h3>
-        <div class="vb-lista" id="vbEredmenyek">
+        <h3 class="vb__alcim">Közeli széljelzők</h3>
+        <div class="met-data" id="metMeasure">
           <div class="halvany">Betöltés…</div>
         </div>
 
-        <h3 class="vb__alcim">Következő meccsek</h3>
-        <div class="vb-lista" id="vbKovetkezok"></div>
+        <h3 class="vb__alcim">Időjárás előrejelzés</h3>
+        <div class="met-data" id="metForecast"></div>
+        <div id="sliderContainer">
+            <!-- value="1" a kezdőérték -->
+            <input type="range" id="terkepSlider" min="0" max="11" value="0">
+            <div id="sliderIdoJelzes">Előrejelzés: +1 óra</div>
+        </div>
+        <div class="met-data" id="forecastImg"></div>
 
         <p class="panel__labjegyzet halvany" id="vbSajatIdo"></p>
       </section>

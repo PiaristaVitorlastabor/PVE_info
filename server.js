@@ -12,6 +12,9 @@ const PUBLIC_DIR = path.join(__dirname, 'src')
 const VIHAR_URL =
   'https://www.met.hu/idojaras/tavaink/balaton/viharjelzes/main.php'
 const MET_KEP_ALAP = 'https://www.met.hu/images/elemek/'
+const MERT_ADATOK_URL = 
+  'https://www.met.hu/idojaras/tavaink/balaton/mert_adatok/main.php'
+const MET_SZOVEGES_ELOREJELZES_URL = 'https://www.met.hu/idojaras/tavaink/balaton/elorejelzes/main.php'
 const OPENWEATHER_KULCS = 'a69e3e0bba0d9ced099ba6c278531be5'
 const IDOJARAS_HELY = { nev: 'Balatonberény', lat: 46.7086, lon: 17.3078 }
 const IDOJARAS_URL =
@@ -126,6 +129,176 @@ async function viharjelzestLekered() {
     return viharjelzestFeldolgoz(html)
   } catch (err) {
     return { ok: false, hiba: `Hálózati hiba: ${err.message}` }
+  }
+}
+
+function mertAdatokatFeldolgoz(html) {
+  console.log("HTML részlet:", html.substring(0, 500));
+  
+  // Megszabadulunk a zavaró újsoroktól
+  const tisztaHtml = html.replace(/\s+/g, ' ');
+  
+  // 1. Megkeressük a HTML-ben a MÁSODIK táblázatot (table[2])
+  const tablazatReszlet = tisztaHtml.split(/<table[^>]*>/i)[2]; 
+  const eredmeny = {};
+
+  // Alapvető tisztító a HTML tagek, tooltip kódok és felesleges szemetek eltávolítására
+  const tisztaSzoveg = (htmlContent) => {
+    if (!htmlContent) return '-';
+    let szoveg = htmlContent.replace(/<[^>]*>/g, ' ');
+    szoveg = szoveg.replace(/onmouseover=['"][^'"]*['"]/gi, '');
+    szoveg = szoveg.replace(/onmouseout=['"][^'"]*['"]/gi, '');
+    szoveg = szoveg.replace(/UnTip\(\)/gi, '');
+    szoveg = szoveg.replace(/['"]\s*\>\s*/g, '');
+    szoveg = szoveg.replace(/&nbsp;/g, ' ');
+    szoveg = szoveg.replace(/\s+/g, ' ').trim();
+    return szoveg || '-';
+  };
+
+  // Külön segédfüggvény a km/h kiszedésére (ha a cellában esetleg több minden lenne)
+  const kmhKinyero = (cellTartalom) => {
+    const szoveg = tisztaSzoveg(cellTartalom);
+    const match = szoveg.match(/(\d+\s*km\/h)/i);
+    return match ? match[1] : szoveg; // Ha talál km/h-t, azt adja vissza, különben a tisztított szöveget
+  };
+
+  // Külön segédfüggvény a szöveges irány kiszedésére (pl. "nyugati")
+  const iranyKinyero = (cellTartalom) => {
+    const szoveg = tisztaSzoveg(cellTartalom);
+    // Megkeressük az első olyan szót, ami betűkből áll (pl. nyugati, északnyugati)
+    const szavak = szoveg.split(' ').filter(szó => szó.length > 0);
+    for (let szo of szavak) {
+      const tisztaSzo = szo.replace(/[^a-záéíóöőúüűÁÉÍÓÖŐÚÜŰ]/g, '');
+      if (tisztaSzo.length > 2) {
+        return tisztaSzo;
+      }
+    }
+    return szoveg;
+  };
+
+  if (tablazatReszlet) {
+    // 2. Kigyűjtjük a táblázat összes sorát (<tr>...</tr>)
+    const sorok = [...tablazatReszlet.matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/gi)].map(m => m[1]);
+
+    for (let i = 0; i < sorok.length; i++) {
+      const sorTartalom = sorok[i];
+      
+      if (sorTartalom && sorTartalom.includes('<th')) {
+        const thMatch = sorTartalom.match(/<th[^>]*>([\s\S]*?)<\/th>/i);
+        if (thMatch) {
+          const allomasNev = tisztaSzoveg(thMatch[1]);
+          
+          // Kigyűjtjük a sor összes celláját
+          const cellak = [...sorTartalom.matchAll(/<td[^>]*>([\s\S]*?)<\/td>/gi)].map(m => m[1]);
+          
+          // Feltételezve, hogy a különálló cellák indexei így követik egymást:
+          // Pl. cellak[1] = Széllökés irány, cellak[2] = Széllökés sebesség (km/h)
+          // (Pontosítsd az indexeket [0, 1, 2, 3...] a te táblázaszerkezeted szerint!)
+          
+          if (allomasNev.includes('Balatonmáriafürdő') && cellak.length >= 5) {
+            eredmeny['Balatonmáriafürdő'] = {
+              szellokesIrany: iranyKinyero(cellak[1]),      // Irány külön cellában
+              szellokesKmh: kmhKinyero(cellak[2]),          // Sebesség külön cellában
+              atlagszelIranyFok: iranyKinyero(cellak[5]),   // Átlag szél irány külön cellában
+              atlagszelSebessegKmh: kmhKinyero(cellak[6])   // Átlag szél sebesség külön cellában
+            };
+          }
+          
+          if (allomasNev.includes('Keszthely') && cellak.length >= 5) {
+            eredmeny['Keszthely platform'] = {
+              szellokesIrany: iranyKinyero(cellak[1]),
+              szellokesKmh: kmhKinyero(cellak[2]),
+              atlagszelIranyFok: iranyKinyero(cellak[5]), // Feltételezve, hogy az átlag szél irány a 6. cellában van
+              atlagszelSebessegKmh: kmhKinyero(cellak[6])
+            };
+          }
+        }
+      }
+    }
+  }
+
+  // Biztonsági fallback, ha a struktúrából nem sikerült volna kinyerni
+  if (!eredmeny['Balatonmáriafürdő']) {
+    eredmeny['Balatonmáriafürdő'] = { szellokesIrany: '-', szellokesKmh: 'NaN', atlagszelIranyFok: '-', atlagszelSebessegKmh: 'NaN' };
+  }
+  if (!eredmeny['Keszthely platform']) {
+    eredmeny['Keszthely platform'] = { szellokesIrany: '-', szellokesKmh: 'NaN', atlagszelIranyFok: '-', atlagszelSebessegKmh: 'NaN' };
+  }
+
+  return { ok: true, adatok: eredmeny };
+}
+
+async function mertAdatokatLekered() {
+  try {
+    const valasz = await fetch(MERT_ADATOK_URL, {
+      headers: { 
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+        'Accept-Language': 'hu-HU,hu;q=0.9,en-US;q=0.8,en;q=0.7',
+        'Cache-Control': 'no-cache',
+        'Pragma': 'no-cache',
+        'Referer': 'https://www.met.hu/idojaras/tavaink/balaton/', // A Referer sokszor kötelező
+        'Connection': 'keep-alive'
+      },
+    });
+
+    if (!valasz.ok) {
+      return { ok: false, hiba: `met.hu válasz: HTTP ${valasz.status}` };
+    }
+
+    const html = await valasz.text();
+    return mertAdatokatFeldolgoz(html);
+  } catch (err) {
+    return { ok: false, hiba: `Hálózati hiba: ${err.message}` };
+  }
+}
+
+function balatonSzovegFeldolgoz(html) {
+  // Megszabadulunk a zavaró dupla szóközöktől és újsoroktól
+  const tisztaHtml = html.replace(/\s+/g, ' ');
+
+  // 1. Szétvágjuk a HTML kódot a nyitó <div... > tagek mentén
+  const divDarabok = tisztaHtml.split(/<div[^>]*>/i);
+
+  // 2. Az XPath (/html/body/div[3]) alapján a 3. div elemet vesszük ki.
+  // A tömbben az indexelés 0-ról indul, és az első elem a div előtti rész (pl. <body>),
+  // így a div[3] pontosan a 3. indexű elem (divDarabok[3]) lesz.
+  let pontosDivTartalom = divDarabok[2];
+
+  if (pontosDivTartalom) {
+    // Mivel a split levágta a div elejét, visszaillesztjük a nyitó taget
+    let teljesDiv = '<div>' + pontosDivTartalom;
+
+    // 3. Megkeressük az első lezáró </div>-et, ami ezt a specifikus blokkot lezárja
+    const zaroIndex = teljesDiv.indexOf('</div>');
+    if (zaroIndex !== -1) {
+      // Kivágjuk a pontos divet az elejétől a végéig
+      teljesDiv = teljesDiv.substring(0, zaroIndex + 6);
+    }
+
+    // Visszaadjuk a teljes, vágatlan és szűretlen div HTML-t
+    return { ok: true, htmlTartalom: teljesDiv };
+  }
+
+  // Biztonsági fallback, ha a struktúra sérült lenne
+  return { 
+    ok: false, 
+    hiba: "A megadott sorszámú div elem nem található a HTML struktúrában." 
+  };
+}
+
+async function balatonElorejelzesLekered() {
+  try {
+    const valasz = await fetch(MET_SZOVEGES_ELOREJELZES_URL, {
+      headers: { 'User-Agent': 'Mozilla/5.0' },
+    });
+    if (!valasz.ok) {
+      return { ok: false, hiba: `met.hu előrejelzés hiba: HTTP ${valasz.status}` };
+    }
+    const html = await valasz.text();
+    return balatonSzovegFeldolgoz(html);
+  } catch (err) {
+    return { ok: false, hiba: `Hálózati hiba: ${err.message}` };
   }
 }
 
@@ -266,6 +439,37 @@ async function szelterkepLekered() {
   }
 }
 
+async function balatonTerkepLekered() {
+  const most = new Date();
+  let oraUTC = most.getUTCHours();
+  
+  let bazisOra = Math.floor(oraUTC / 6) * 6;
+  let bazisDatum = new Date(most);
+  
+  if (bazisOra === 0) {
+    bazisOra = 18;
+    bazisDatum.setUTCDate(bazisDatum.getUTCDate() - 1);
+  }
+  bazisDatum.setUTCHours(bazisOra, 0, 0, 0);
+
+  const eltoltOrak = Math.floor((most - bazisDatum) / (1000 * 60 * 60));
+  
+  const kepek = [];
+  const ev = bazisDatum.getUTCFullYear();
+  const honap = String(bazisDatum.getUTCMonth() + 1).padStart(2, '0');
+  const nap = String(bazisDatum.getUTCDate()).padStart(2, '0');
+  const datumString = `${ev}${honap}${nap}`;
+  const bazisString = String(bazisOra).padStart(2, '0') + '00';
+
+  for (let i = 0; i < 12; i++) {
+    let currentOffset = eltoltOrak + i + 1;
+    let pluszIdoString = (currentOffset * 100).toString().padStart(5, '0');
+    kepek.push(`https://www.met.hu/img/mwWB/mwWB${datumString}_${bazisString}+${pluszIdoString}.jpg`);
+  }
+
+  return { ok: true, urls: kepek };
+}
+
 async function handleApi(req, res, pathname) {
   if (pathname === '/api/vihar') {
     sendJson(res, await viharjelzestLekered())
@@ -296,6 +500,24 @@ async function handleApi(req, res, pathname) {
     res.end(eredmeny.adat)
     return
   }
+  // Mért adatok a met.hu oldalról (balatoni széladatok)
+  if (pathname === '/api/mertadatok') {
+    sendJson(res, await mertAdatokatLekered())
+    return
+  }
+
+  // server.js -> handleApi függvény belsejében add hozzá ezt az if ágat:
+  if (pathname === '/api/balaton-elorejelzes') {
+    sendJson(res, await balatonElorejelzesLekered());
+    return;
+  }
+
+  // server.js -> handleApi függvény belsejében az eddigi if ágak mellé:
+  if (pathname === '/api/balaton-terkep-slider') {
+    sendJson(res, await balatonTerkepLekered());
+    return;
+  }
+
   res.writeHead(404, { 'Content-Type': 'application/json; charset=utf-8' })
   res.end(JSON.stringify({ ok: false, hiba: 'Ismeretlen API útvonal.' }))
 }
