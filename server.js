@@ -443,7 +443,7 @@ async function balatonTerkepLekered() {
   const most = new Date();
   let oraUTC = most.getUTCHours();
   
-  let bazisOra = Math.floor(oraUTC / 6) * 6;
+  let bazisOra = Math.floor((oraUTC -2)/ 6) * 6;
   let bazisDatum = new Date(most);
   
   if (bazisOra === 0) {
